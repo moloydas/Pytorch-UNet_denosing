@@ -42,7 +42,7 @@ def train_model(
     try:
         dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
     except (AssertionError, RuntimeError, IndexError):
-        dataset = DenoiserDataset(dir_img, dir_mask)
+        dataset = DenoiserDataset(dir_img, dir_mask, mask_suffix='.npy')
 
     # 2. Split into train / validation partitions
     n_val = int(len(dataset) * val_percent)
