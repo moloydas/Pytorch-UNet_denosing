@@ -38,7 +38,7 @@ def evaluate(net, dataloader, device, amp):
                 # dice_score += multiclass_dice_coeff(mask_pred[:, 1:], mask_true[:, 1:], reduce_batch_first=False)
                 print(mask_pred.shape)
                 print(mask_true.shape)
-                delta = nn.MSE(mask_pred, mask_true)
+                delta = nn.MSELoss()(mask_pred, mask_true)
                 print(delta)
                 print(delta.item())
 
