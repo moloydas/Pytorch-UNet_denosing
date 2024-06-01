@@ -16,7 +16,7 @@ from tqdm import tqdm
 import wandb
 from evaluate import evaluate
 from unet import UNet
-from utils.data_loading import BasicDataset, CarvanaDataset
+from utils.data_loading import DenoiserDataset, CarvanaDataset
 from utils.dice_score import dice_loss
 
 dir_img = Path('./data/imgs/')
@@ -42,7 +42,7 @@ def train_model(
     try:
         dataset = CarvanaDataset(dir_img, dir_mask, img_scale)
     except (AssertionError, RuntimeError, IndexError):
-        dataset = BasicDataset(dir_img, dir_mask, img_scale)
+        dataset = DenoiserDataset(dir_img, dir_mask)
 
     # 2. Split into train / validation partitions
     n_val = int(len(dataset) * val_percent)
@@ -78,7 +78,7 @@ def train_model(
                               lr=learning_rate, weight_decay=weight_decay, momentum=momentum, foreach=True)
     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
     grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
-    criterion = nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
+    criterion = nn.MSELoss()#nn.CrossEntropyLoss() if model.n_classes > 1 else nn.BCEWithLogitsLoss()
     global_step = 0
 
     # 5. Begin training
@@ -194,7 +194,7 @@ if __name__ == '__main__':
     # Change here to adapt to your data
     # n_channels=3 for RGB images
     # n_classes is the number of probabilities you want to get per pixel
-    model = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    model = UNet(n_channels=3, n_classes=3, bilinear=args.bilinear)
     model = model.to(memory_format=torch.channels_last)
 
     logging.info(f'Network:\n'
