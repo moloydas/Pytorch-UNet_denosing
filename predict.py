@@ -8,29 +8,31 @@ import torch.nn.functional as F
 from PIL import Image
 from torchvision import transforms
 
-from utils.data_loading import BasicDataset
+from utils.data_loading import DenoiserDataset,BasicDataset
 from unet import UNet
 from utils.utils import plot_img_and_mask
+import matplotlib.pyplot as plt
 
 def predict_img(net,
                 full_img,
                 device,
-                scale_factor=1,
+                scale_factor=2,
                 out_threshold=0.5):
     net.eval()
-    img = torch.from_numpy(BasicDataset.preprocess(None, full_img, scale_factor, is_mask=False))
+    img = torch.from_numpy(DenoiserDataset.preprocess(full_img, scale_factor, is_mask=False))
+    print(img.shape)
     img = img.unsqueeze(0)
     img = img.to(device=device, dtype=torch.float32)
 
     with torch.no_grad():
         output = net(img).cpu()
-        output = F.interpolate(output, (full_img.size[1], full_img.size[0]), mode='bilinear')
-        if net.n_classes > 1:
-            mask = output.argmax(dim=1)
-        else:
-            mask = torch.sigmoid(output) > out_threshold
+        output = F.interpolate(output, (2*full_img.size[1], 2*full_img.size[0]), mode='bilinear')
+        # if net.n_classes > 1:
+        #     mask = output.argmax(dim=1)
+        # else:
+        #     mask = torch.sigmoid(output) > out_threshold
 
-    return mask[0].long().squeeze().numpy()
+    return output[0].float().squeeze().numpy().transpose((1, 2, 0))
 
 
 def get_args():
@@ -44,7 +46,7 @@ def get_args():
     parser.add_argument('--no-save', '-n', action='store_true', help='Do not save the output masks')
     parser.add_argument('--mask-threshold', '-t', type=float, default=0.5,
                         help='Minimum probability value to consider a mask pixel white')
-    parser.add_argument('--scale', '-s', type=float, default=0.5,
+    parser.add_argument('--scale', '-s', type=float, default=2,
                         help='Scale factor for the input images')
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=2, help='Number of classes')
@@ -83,7 +85,7 @@ if __name__ == '__main__':
     in_files = args.input
     out_files = get_output_filenames(args)
 
-    net = UNet(n_channels=3, n_classes=args.classes, bilinear=args.bilinear)
+    net = UNet(n_channels=3, n_classes=3, bilinear=args.bilinear)
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Loading model {args.model}')
@@ -105,13 +107,26 @@ if __name__ == '__main__':
                            scale_factor=args.scale,
                            out_threshold=args.mask_threshold,
                            device=device)
+        print(mask.shape)
+        # print(mask.min(), mask.max())
+        # mask = np.mean(mask, axis=2)
+        # mask = mask - mask.min()
 
-        if not args.no_save:
-            out_filename = out_files[i]
-            result = mask_to_image(mask, mask_values)
-            result.save(out_filename)
-            logging.info(f'Mask saved to {out_filename}')
+        print(mask[:,:,0].min(), mask[:,:,0].max())
+        print(mask[:,:,1].min(), mask[:,:,1].max())
+        print(mask[:,:,2].min(), mask[:,:,2].max())
+        mask[mask < 0] = 0
+        
+        plt.imsave(out_files[i].replace('.png', '_r.png'), mask[:,:,0], cmap='gray')
+        plt.imsave(out_files[i].replace('.png', '_g.png'), mask[:,:,1], cmap='gray')
+        plt.imsave(out_files[i].replace('.png', '_b.png'), mask[:,:,2], cmap='gray')
 
-        if args.viz:
-            logging.info(f'Visualizing results for image {filename}, close to continue...')
-            plot_img_and_mask(img, mask)
+        # if not args.no_save:
+        #     out_filename = out_files[i]
+        #     result = mask_to_image(mask, mask_values)
+        #     result.save(out_filename)
+        #     logging.info(f'Mask saved to {out_filename}')
+
+        # if args.viz:
+        #     logging.info(f'Visualizing results for image {filename}, close to continue...')
+        #     plot_img_and_mask(img, mask)

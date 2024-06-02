@@ -26,15 +26,6 @@ class DenoiserDataset(Dataset):
             raise RuntimeError(f'No input file found in {images_dir}, make sure you put your images there')
 
         logging.info(f'Creating dataset with {len(self.ids)} examples')
-        logging.info('Scanning mask files to determine unique values')
-        with Pool(processes=8) as p:
-            unique = list(tqdm(
-                p.imap(partial(unique_mask_values, mask_dir=self.mask_dir, mask_suffix=self.mask_suffix), self.ids),
-                total=len(self.ids)
-            ))
-
-        # self.mask_values = list(sorted(np.unique(np.concatenate(unique), axis=0).tolist()))
-        # logging.info(f'Unique mask values: {self.mask_values}')
 
     def __len__(self):
         return len(self.ids)
@@ -42,20 +33,16 @@ class DenoiserDataset(Dataset):
     @staticmethod
     def preprocess(pil_img, scale, is_mask):
         if is_mask:
-            # mask = np.zeros((newH, newW), dtype=np.int64)
-            # for i, v in enumerate(mask_values):
-            #     if img.ndim == 2:
-            #         mask[img == v] = i
-            #     else:
-            #         mask[(img == v).all(-1)] = i
-
+            pil_img = pil_img[0:210, 66:466]
             return pil_img.transpose((2, 0, 1))
         else:
             w, h = pil_img.size
-            newW, newH = int(scale * w), int(scale * h)
+            newW, newH = int(2 * w), int(2 * h)
+
             pil_img = pil_img.resize((newW, newH), resample=Image.BICUBIC if not is_mask else Image.NEAREST)
             img = np.asarray(pil_img)
-
+            img = img[0:210, 66:466]
+            # newW, newH = 400, 210
             if img.ndim == 2:
                 img = img[np.newaxis, ...]
             else:
@@ -77,7 +64,7 @@ class DenoiserDataset(Dataset):
         img = load_image(img_file[0])
 
         img = self.preprocess(img, 2, is_mask=False)
-        mask = self.preprocess(mask, self.scale, is_mask=True)
+        mask = self.preprocess(mask, 1, is_mask=True)
 
         return {
             'image': torch.as_tensor(img.copy()).float().contiguous(),
