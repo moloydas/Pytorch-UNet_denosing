@@ -19,14 +19,15 @@ def predict_img(net,
                 scale_factor=2,
                 out_threshold=0.5):
     net.eval()
-    img = torch.from_numpy(DenoiserDataset.preprocess(full_img, scale_factor, is_mask=False))
-    print(img.shape)
+    img = torch.from_numpy(full_img)
+
     img = img.unsqueeze(0)
     img = img.to(device=device, dtype=torch.float32)
 
     with torch.no_grad():
         output = net(img).cpu()
-        output = F.interpolate(output, (2*full_img.size[1], 2*full_img.size[0]), mode='bilinear')
+        # print(full_img.shape)
+        output = F.interpolate(output, (full_img.shape[1], full_img.shape[2]), mode='bilinear')
         # if net.n_classes > 1:
         #     mask = output.argmax(dim=1)
         # else:
@@ -102,24 +103,31 @@ if __name__ == '__main__':
         logging.info(f'Predicting image {filename} ...')
         img = Image.open(filename)
 
+        full_img = DenoiserDataset.preprocess(img, 1, is_mask=False)
+
         mask = predict_img(net=net,
-                           full_img=img,
+                           full_img=full_img,
                            scale_factor=args.scale,
                            out_threshold=args.mask_threshold,
                            device=device)
-        print(mask.shape)
+
         # print(mask.min(), mask.max())
         # mask = np.mean(mask, axis=2)
         # mask = mask - mask.min()
+        full_img = full_img.transpose((1, 2, 0))
+        print(mask.shape)
+        print(full_img.shape)
+        final_img = full_img+mask
+        final_img[final_img>1] = 1
+        print(final_img[:,:,0].min(), final_img[:,:,0].max())
+        print(final_img[:,:,1].min(), final_img[:,:,1].max())
+        print(final_img[:,:,2].min(), final_img[:,:,2].max())
+        # mask[mask < 0] = 0
 
-        print(mask[:,:,0].min(), mask[:,:,0].max())
-        print(mask[:,:,1].min(), mask[:,:,1].max())
-        print(mask[:,:,2].min(), mask[:,:,2].max())
-        mask[mask < 0] = 0
-        
-        plt.imsave(out_files[i].replace('.png', '_r.png'), mask[:,:,0], cmap='gray')
-        plt.imsave(out_files[i].replace('.png', '_g.png'), mask[:,:,1], cmap='gray')
-        plt.imsave(out_files[i].replace('.png', '_b.png'), mask[:,:,2], cmap='gray')
+        plt.imsave(out_files[i].replace('.png', '_r.png'), final_img[:,:,0], cmap='gray')
+        plt.imsave(out_files[i].replace('.png', '_g.png'), final_img[:,:,1], cmap='gray')
+        plt.imsave(out_files[i].replace('.png', '_b.png'), final_img[:,:,2], cmap='gray')
+        plt.imsave(out_files[i].replace('.png', '_rgb.png'), final_img)
 
         # if not args.no_save:
         #     out_filename = out_files[i]
