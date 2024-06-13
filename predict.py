@@ -27,7 +27,7 @@ def predict_img(net,
     with torch.no_grad():
         output = net(img).cpu()
         # print(full_img.shape)
-        output = F.interpolate(output, (full_img.shape[1], full_img.shape[2]), mode='bilinear')
+        # output = F.interpolate(output, (full_img.shape[1], full_img.shape[2]), mode='bilinear')
         # if net.n_classes > 1:
         #     mask = output.argmax(dim=1)
         # else:
@@ -101,9 +101,11 @@ if __name__ == '__main__':
 
     for i, filename in enumerate(in_files):
         logging.info(f'Predicting image {filename} ...')
+        gt_path = filename.replace('images', 'gt').replace('.jpg', '.npy')
+        gt = np.load(gt_path)
         img = Image.open(filename)
 
-        full_img = DenoiserDataset.preprocess(img, 1, is_mask=False)
+        full_img = DenoiserDataset.preprocess(img, 2, is_mask=False)
 
         mask = predict_img(net=net,
                            full_img=full_img,
@@ -111,23 +113,43 @@ if __name__ == '__main__':
                            out_threshold=args.mask_threshold,
                            device=device)
 
-        # print(mask.min(), mask.max())
-        # mask = np.mean(mask, axis=2)
-        # mask = mask - mask.min()
         full_img = full_img.transpose((1, 2, 0))
-        print(mask.shape)
-        print(full_img.shape)
-        final_img = full_img+mask
-        final_img[final_img>1] = 1
+
+        print("Range of full_img")
+        print(full_img[:,:,0].min(), full_img[:,:,0].max())
+        print(full_img[:,:,1].min(), full_img[:,:,1].max())
+        print(full_img[:,:,2].min(), full_img[:,:,2].max())
+
+        final_img = full_img + mask
+
+        gt = gt[0:full_img.shape[0], 0:full_img.shape[1]]
+        loss = np.mean((full_img - gt)**2)
+        print(f"Loss: {loss}")
+
+        print("Range of noise")
+        print(mask[:,:,0].min(), mask[:,:,0].max())
+        print(mask[:,:,1].min(), mask[:,:,1].max())
+        print(mask[:,:,2].min(), mask[:,:,2].max())
+
+        print("Range of pred img")
         print(final_img[:,:,0].min(), final_img[:,:,0].max())
         print(final_img[:,:,1].min(), final_img[:,:,1].max())
         print(final_img[:,:,2].min(), final_img[:,:,2].max())
-        # mask[mask < 0] = 0
+
+        print("Range of final img")
+        print(final_img.min(), final_img.max())
+
+        final_img = final_img/final_img.max()
+        final_img[final_img < 0] = 0
+        
+        print("Range of final img")
+        print(final_img.min(), final_img.max())
 
         plt.imsave(out_files[i].replace('.png', '_r.png'), final_img[:,:,0], cmap='gray')
         plt.imsave(out_files[i].replace('.png', '_g.png'), final_img[:,:,1], cmap='gray')
         plt.imsave(out_files[i].replace('.png', '_b.png'), final_img[:,:,2], cmap='gray')
         plt.imsave(out_files[i].replace('.png', '_rgb.png'), final_img)
+        plt.imsave(out_files[i].replace('.png', '_og.png'), full_img)
 
         # if not args.no_save:
         #     out_filename = out_files[i]
