@@ -68,7 +68,9 @@ class DenoiserDataset(Dataset):
 
         return {
             'image': torch.as_tensor(img.copy()).float().contiguous(),
-            'mask': torch.as_tensor(mask.copy()).float().contiguous()
+            'mask': torch.as_tensor(mask.copy()).float().contiguous(),
+            'mask_name': mask_file[0],
+            'img_name': img_file[0]
         }
 
 def load_image(filename):
